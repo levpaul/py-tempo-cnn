@@ -19,8 +19,12 @@ class Net(nn.Module):
 
 class FMASpectrogramsDataset(Dataset):
     def __init__(self, train):
-        self.train = train
-        # TODO: return np arrays depending on train or test
+        if train:
+            self.data = np.load('data/fma-train-data.npy')
+            self.labels = np.load('data/fma-train-labels.npy')
+        else:
+            self.data = np.load('data/fma-test-data.npy')
+            self.labels = np.load('data/fma-test-labels.npy')
 
     def __len__(self):
         return 0 # TODO: impl
