@@ -27,10 +27,10 @@ class FMASpectrogramsDataset(Dataset):
             self.labels = np.load('data/fma-test-labels.npy')
 
     def __len__(self):
-        return 0 # TODO: impl
+        return self.labels.size
 
     def __getitem__(self, idx):
-        return 0 # TODO: return spectrogram + label
+        return (self.data[idx], self.labels[idx])
 
 
 def parse_args():
