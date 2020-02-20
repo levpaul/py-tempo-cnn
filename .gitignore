@@ -2,3 +2,4 @@
 venv
 output
 data
+__pycache__
