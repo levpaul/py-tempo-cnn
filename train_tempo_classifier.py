@@ -41,7 +41,7 @@ class Net(nn.Module):
         # x = self.fc2(x)
         # x = F.relu(x)
         x = self.fc3(x)
-        output = F.log_softmax(x, dim=1)
+        output = F.softmax(x, dim=1)
         return output
 
 class FMASpectrogramsDataset(Dataset):
@@ -81,6 +81,23 @@ def train(net, loader, device, opt):
             print('[{:5d}] loss: {:0.3f}'.format(bidx+1, running_loss/50))
             running_loss = 0.
 
+def test(net, loader, device):
+    net.eval()
+    loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, targets in loader:
+            data, targets = data.to(device), targets.to(device)
+            out = net(data)
+            loss += F.nll_loss(out, targets, reduction='sum').item()
+            pred = out.argmax(dim=1, keepdim=True)
+            correct += pred.eq(targets.view_as(pred)).sum().item()
+
+    loss /= len(loader.dataset)
+    print("Test set: Average loss: {:.4f}, Acc: {}/{} ({:.0f}%)\n".format(
+        loss, correct, len(loader.dataset),
+        100. * correct / len(loader.dataset)
+    ))
 
 def parse_args():
     pa = argparse.ArgumentParser()
@@ -105,8 +122,12 @@ def run():
     for e in range(1,epochs+1):
         print('Begining training at epoch {:d}'.format(e))
         train(net, tr_loader, device, opt)
-        # test()
+        test(net, tr_loader, device)
 
+    torch.save(net.state_dict(), 'nn.pt')
+    # Load like so:
+    # newnet = Net()
+    # newnet.load_state_dict(torch.load('nn.pt'))
     print('TODO: implement the rest')
 
 if __name__ == '__main__':
