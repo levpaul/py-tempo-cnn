@@ -10,14 +10,40 @@ import argparse
 import random
 from torch.utils.data import Dataset, DataLoader
 
-epochs=5
+epochs=10000
 bsize=100
 
 spectro_window_size = 256
 
-class Net(nn.Module):
+class PaperNet(nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
+        super(PaperNet, self).__init__()
+        # Short Conv NN x3
+
+        # Spectros come in at 40 x 256
+        self.conv1 = nn.Conv2d(1, 16, 5) # 16x36x252
+        self.conv1_bn = nn.BatchNorm2d(16*36*252)
+        self.conv2 = nn.Conv2d(16, 16, 5) # 16x32x248
+        self.conv2_bn = nn.BatchNorm2d(16*36*252)
+        self.conv3 = nn.Conv2d(16, 16, 5) # 16x28x244
+        self.conv3_bn = nn.BatchNorm2d(16*36*252)
+
+        # Multi filter NN x4
+        # Dense Layers
+
+        # self.fc1 = nn.Linear(14*122, 50) # 120
+        # self.fc2 = nn.Linear(120, 50) # 50
+        # self.fc3 = nn.Linear(50, 256) # 256 final out
+
+    def forward(self, x):
+        x = F.elu(self.conv1(x))
+        x = F.elu(self.conv2_bn(self.conv2(x)))
+        x = F.elu(self.conv3_bn(self.conv3(x)))
+        return F.softmax(x,dim=1)
+
+class BadNet(nn.Module):
+    def __init__(self):
+        super(BadNet, self).__init__()
 
         # Spectros come in at 40 x 256
         self.conv1 = nn.Conv2d(1, 6, 3) # 6x38x254
@@ -41,7 +67,7 @@ class Net(nn.Module):
         # x = self.fc2(x)
         # x = F.relu(x)
         x = self.fc3(x)
-        output = F.softmax(x, dim=1)
+        output = F.log_softmax(x, dim=1)
         return output
 
 class FMASpectrogramsDataset(Dataset):
@@ -102,6 +128,7 @@ def test(net, loader, device):
 def parse_args():
     pa = argparse.ArgumentParser()
     pa.add_argument('-i', '--isolated', required=False)
+    pa.add_argument('-n', '--network', default='paper')
     return pa.parse_args()
 
 def run():
@@ -113,22 +140,28 @@ def run():
     te_loader = DataLoader(FMASpectrogramsDataset(train=False),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     print('Initializing network and optimizer')
-    net = Net().cuda().half()
+    if args.network == 'paper':
+        net = PaperNet()
+    else:
+        net = BadNet()
+
+    cuda = torch.cuda.is_available()
+    device = "cuda" if cuda else "cpu"
+    if cuda:
+        net = net.cuda().half()
+
     opt = optim.SGD(net.parameters(), lr=0.01)
 
     for e in range(1,epochs+1):
         print('Begining training at epoch {:d}'.format(e))
         train(net, tr_loader, device, opt)
         test(net, tr_loader, device)
+        torch.save(net.state_dict(), 'saves/nn-ep-{:03d}.pt'.format(e))
 
-    torch.save(net.state_dict(), 'nn.pt')
     # Load like so:
     # newnet = Net()
     # newnet.load_state_dict(torch.load('nn.pt'))
-    print('TODO: implement the rest')
 
 if __name__ == '__main__':
     run()
