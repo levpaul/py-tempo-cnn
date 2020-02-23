@@ -10,7 +10,7 @@ import argparse
 import random
 from torch.utils.data import Dataset, DataLoader
 
-epochs=5
+epochs=10000
 bsize=100
 
 spectro_window_size = 256
@@ -41,7 +41,7 @@ class Net(nn.Module):
         # x = self.fc2(x)
         # x = F.relu(x)
         x = self.fc3(x)
-        output = F.softmax(x, dim=1)
+        output = F.log_softmax(x, dim=1)
         return output
 
 class FMASpectrogramsDataset(Dataset):
@@ -123,8 +123,8 @@ def run():
         print('Begining training at epoch {:d}'.format(e))
         train(net, tr_loader, device, opt)
         test(net, tr_loader, device)
+        torch.save(net.state_dict(), 'saves/nn-ep-{:03d}.pt'.format(e))
 
-    torch.save(net.state_dict(), 'nn.pt')
     # Load like so:
     # newnet = Net()
     # newnet.load_state_dict(torch.load('nn.pt'))
