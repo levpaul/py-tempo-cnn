@@ -2,4 +2,6 @@
 venv
 output
 data
+saves
+output.log
 __pycache__
