@@ -11,7 +11,7 @@ import random
 from torch.utils.data import Dataset, DataLoader
 
 epochs=10000
-bsize=100
+bsize=64
 
 spectro_window_size = 256
 
@@ -152,7 +152,8 @@ class PaperNet(nn.Module):
         x = self.dl_bn3(x)
         x = self.dl_fc3(x)
 
-        output = F.softmax(x,dim=1)
+        # output = F.softmax(x,dim=1)
+        output = F.log_softmax(x,dim=1)
         # print('output', output.shape)
         return output
 
@@ -195,6 +196,7 @@ class BadNet(nn.Module):
         # x = self.fc2(x)
         # x = F.relu(x)
         x = self.fc3(x)
+        # output = F.softmax(x, dim=1)
         output = F.log_softmax(x, dim=1)
         return output
 
@@ -217,7 +219,7 @@ class FMASpectrogramsDataset(Dataset):
         upper_idx = lower_idx + spectro_window_size
         return (self.data[idx,:,:,lower_idx:upper_idx], self.labels[idx].astype(np.long))
 
-def train(net, loader, device, opt):
+def train(net, loader, device, opt, criterion):
     net.train()
     running_loss = 0.
     for bidx, (data, targets) in enumerate(loader):
@@ -230,16 +232,17 @@ def train(net, loader, device, opt):
         # print('targs', targets)
 
         # loss = F.nll_loss(outs, targets)
-        loss = F.cross_entropy(outs, targets)
+        # loss = F.cross_entropy(outs, targets)
+        loss = criterion(outs, targets)
         loss.backward() # <- compute backprop derivs
         opt.step()
 
         running_loss += loss.item()
-        if bidx % 50 == 49:
+        if bidx % 5000 == 49:
             print('[{:5d}] loss: {:0.3f}'.format(bidx+1, running_loss/50))
             running_loss = 0.
 
-def test(net, loader, device):
+def test(net, loader, device, criterion):
     net.eval()
     loss = 0
     correct = 0
@@ -247,8 +250,12 @@ def test(net, loader, device):
         for data, targets in loader:
             data, targets = data.to(device), targets.to(device)
             out = net(data)
-            loss += F.nll_loss(out, targets, reduction='sum').item()
             pred = out.argmax(dim=1, keepdim=True)
+            if loss == 0:
+                print('out', out)
+                print('pred', pred[:5])
+                print('label', targets[:5])
+            loss += criterion(out, targets).item()
             correct += pred.eq(targets.view_as(pred)).sum().item()
 
     loss /= len(loader.dataset)
@@ -260,7 +267,7 @@ def test(net, loader, device):
 def parse_args():
     pa = argparse.ArgumentParser()
     pa.add_argument('-i', '--isolated', required=False)
-    pa.add_argument('-n', '--network', default='paper')
+    pa.add_argument('-n', '--network', default='ssa', help='Select NN to use, can chose from [ssa,bad]')
     return pa.parse_args()
 
 def run():
@@ -268,29 +275,34 @@ def run():
 
     print('Initializing Data Loaders...')
     tr_loader = DataLoader(FMASpectrogramsDataset(train=True),
-                           batch_size=bsize, shuffle=True, num_workers=10, pin_memory=True)
+                           batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
     te_loader = DataLoader(FMASpectrogramsDataset(train=False),
-                           batch_size=bsize, shuffle=True, num_workers=10, pin_memory=True)
+                           batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
 
     print('Initializing network and optimizer')
-    if args.network == 'paper':
+    if args.network == 'ssa':
         net = PaperNet()
-    else:
+    elif args.network == 'bad':
         net = BadNet()
+    else:
+        print('Invalid neural network; "{}" is not supported'.format(args.network))
+        return
 
     cuda = torch.cuda.is_available()
     device = "cuda" if cuda else "cpu"
     if cuda:
         net = net.cuda().half()
 
-    # opt = optim.SGD(net.parameters(), lr=0.01)
+    opt = optim.SGD(net.parameters(), lr=0.001)
+    # criterion = nn.CrossEntropyLoss()
+    criterion = nn.NLLLoss()
     # default eps causes NaNs for 16bit training
-    opt = optim.Adam(net.parameters(), lr=0.01, eps=1e-4)
+    # opt = optim.Adam(net.parameters(), lr=0.01, eps=1e-4) # <- deconverged to NaNs at 2.5 epochs
 
     for e in range(1,epochs+1):
-        print('Begining training at epoch {:d}'.format(e))
-        train(net, tr_loader, device, opt)
-        test(net, tr_loader, device)
+        print('Beginning training at epoch {:d}'.format(e))
+        train(net, tr_loader, device, opt, criterion)
+        test(net, te_loader, device, criterion)
         torch.save(net.state_dict(), 'saves/nn-ep-{:03d}.pt'.format(e))
 
     # Load like so:
