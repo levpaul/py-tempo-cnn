@@ -8,7 +8,9 @@ import torch.optim as optim
 
 import argparse
 import random
+import re
 from torch.utils.data import Dataset, DataLoader
+from os import path
 
 epochs=10000
 bsize=64
@@ -268,6 +270,7 @@ def parse_args():
     pa = argparse.ArgumentParser()
     pa.add_argument('-i', '--isolated', required=False)
     pa.add_argument('-n', '--network', default='ssa', help='Select NN to use, can chose from [ssa,bad]')
+    pa.add_argument('-r', '--resume', default=False, help='Resume training from a saved model, expected file name format nn-$network-$epoch.pt')
     return pa.parse_args()
 
 def run():
@@ -279,6 +282,17 @@ def run():
     te_loader = DataLoader(FMASpectrogramsDataset(train=False),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
 
+    if args.resume:
+        resume_base = path.basename(args.resume)
+        re_results = re.search('nn-(.*)-(\d*).pt$', resume_base)
+        if re_results == None or len(re_results.groups()) != 2:
+            print('Invalid resume file - please pass in as nn-$network-$epoch.pt')
+            exit(1)
+        args.network = re_results.groups()[0]
+        start_epoch = int(re_results.groups()[1]) + 1
+    else:
+        start_epoch = 1
+
     print('Initializing network and optimizer')
     if args.network == 'ssa':
         net = PaperNet()
@@ -286,7 +300,10 @@ def run():
         net = BadNet()
     else:
         print('Invalid neural network; "{}" is not supported'.format(args.network))
-        return
+        exit(1)
+
+    if args.resume:
+        net.load_state_dict(torch.load(args.resume))
 
     cuda = torch.cuda.is_available()
     device = "cuda" if cuda else "cpu"
@@ -299,11 +316,11 @@ def run():
     # default eps causes NaNs for 16bit training
     # opt = optim.Adam(net.parameters(), lr=0.01, eps=1e-4) # <- deconverged to NaNs at 2.5 epochs
 
-    for e in range(1,epochs+1):
+    for e in range(start_epoch,epochs+1):
         print('Beginning training at epoch {:d}'.format(e))
         train(net, tr_loader, device, opt, criterion)
         test(net, te_loader, device, criterion)
-        torch.save(net.state_dict(), 'saves/nn-ep-{:03d}.pt'.format(e))
+        torch.save(net.state_dict(), 'saves/nn-{:s}-{:04d}.pt'.format(args.network, e))
 
     # Load like so:
     # newnet = Net()
