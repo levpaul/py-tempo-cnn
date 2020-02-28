@@ -7,33 +7,12 @@ import uuid
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 # with Pool(40) as p: p.map(my_function, my_array)
+from itertools import repeat
 
-pool = ThreadPool(40)
-
-files = [
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav',
-    'raw/classic.wav'
-]
-
-c = 0
-def get_file():
-    global c
-    c += 1
-    if c % 100 == 0:
-        return
-    yield 'raw/classic.wav'
-
+# No diff between poolings except normal Pool gives Exceptions at runtime
+pool = ThreadPool(50)
+# pool = Pool(50)
+files = repeat('raw/classic.wav', times=100000)
 
 def transform(f):
     tfm = sox.Transformer()
@@ -41,7 +20,7 @@ def transform(f):
     tfm.tempo(.76)
     tfm.echo()
     tfm.flanger()
-    tfm.build(get_file, 'out/{}.wav'.format(uuid.uuid4().hex))
+    tfm.build(f, 'out/{}.wav'.format(uuid.uuid4().hex))
 
 pool.map(transform, files)
 
