@@ -310,7 +310,7 @@ def run():
     if cuda:
         net = net.cuda().half()
 
-    opt = optim.SGD(net.parameters(), lr=0.001)
+    opt = optim.SGD(net.parameters(), lr=0.01)
     # criterion = nn.CrossEntropyLoss()
     criterion = nn.NLLLoss()
     # default eps causes NaNs for 16bit training

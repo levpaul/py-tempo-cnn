@@ -6,3 +6,7 @@ saves
 output.log
 logs
 __pycache__
+raw
+out
+*.pt
+*.wav
