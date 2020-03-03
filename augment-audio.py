@@ -14,6 +14,8 @@ pool = ThreadPool(50)
 # pool = Pool(50)
 files = repeat('raw/classic.wav', times=100000)
 
+# Files from DB
+
 def transform(f):
     tfm = sox.Transformer()
     tfm.lowpass(5500)
