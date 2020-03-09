@@ -13,8 +13,7 @@ from torch.utils.data import Dataset, DataLoader
 from os import path
 
 epochs=10000
-bsize=64
-
+bsize=128
 spectro_window_size = 256
 
 class PaperNet(nn.Module):
@@ -159,19 +158,6 @@ class PaperNet(nn.Module):
         # print('output', output.shape)
         return output
 
-
-class MFMod(object):
-    def __init__(self,m, input_chans):
-        self.ap = nn.AvgPool2d((m,1))
-        self.bn = nn.BatchNorm2d(input_chans)
-        self.conv1 = nn.Conv2d(input_chans,24,(1,32))
-        self.conv2 = nn.Conv2d(input_chans,24,(1,64))
-        self.conv3 = nn.Conv2d(input_chans,24,(1,96))
-        self.conv4 = nn.Conv2d(input_chans,24,(1,128))
-        self.conv5 = nn.Conv2d(input_chans,24,(1,192))
-        self.conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
-        self.conv_final = nn.Conv2d(24,36,1)
-
 class BadNet(nn.Module):
     def __init__(self):
         super(BadNet, self).__init__()
@@ -202,24 +188,25 @@ class BadNet(nn.Module):
         output = F.log_softmax(x, dim=1)
         return output
 
-class FMASpectrogramsDataset(Dataset):
+class MyDataset(Dataset):
     def __init__(self, train):
         if train:
-            self.data = np.load('data/fma-train-data.npy')
-            self.labels = np.load('data/fma-train-labels.npy')
+            self.data = np.load('newdata/train-data.npy')
+            self.labels = np.load('newdata/train-labels.npy')
         else:
-            self.data = np.load('data/fma-test-data.npy')
-            self.labels = np.load('data/fma-test-labels.npy')
+            self.data = np.load('newdata/test-data.npy')
+            self.labels = np.load('newdata/test-labels.npy')
 
     def __len__(self):
-        return self.labels.size
+        return self.labels.shape[1]
 
     def __getitem__(self, idx):
         d = self.data[idx]
-        max_idx = d.shape[-1] - spectro_window_size
+        l = self.labels[1][idx]
+        max_idx = l - spectro_window_size
         lower_idx = random.randint(0, max_idx)
         upper_idx = lower_idx + spectro_window_size
-        return (self.data[idx,:,:,lower_idx:upper_idx], self.labels[idx].astype(np.long))
+        return (self.data[idx,:,:,lower_idx:upper_idx], self.labels[0][idx].astype(np.long))
 
 def train(net, loader, device, opt, criterion):
     net.train()
@@ -277,9 +264,9 @@ def run():
     args = parse_args()
 
     print('Initializing Data Loaders...')
-    tr_loader = DataLoader(FMASpectrogramsDataset(train=True),
+    tr_loader = DataLoader(MyDataset(train=True),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
-    te_loader = DataLoader(FMASpectrogramsDataset(train=False),
+    te_loader = DataLoader(MyDataset(train=False),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
 
     if args.resume:
@@ -320,7 +307,7 @@ def run():
         print('Beginning training at epoch {:d}'.format(e))
         train(net, tr_loader, device, opt, criterion)
         test(net, te_loader, device, criterion)
-        torch.save(net.state_dict(), 'saves/nn-{:s}-{:04d}.pt'.format(args.network, e))
+        # torch.save(net.state_dict(), 'saves/nn-{:s}-{:04d}.pt'.format(args.network, e))
 
     # Load like so:
     # newnet = Net()

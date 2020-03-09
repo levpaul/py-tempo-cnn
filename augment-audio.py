@@ -2,27 +2,56 @@
 
 
 import sox
-import uuid
+import string
 import random
 
 from multiprocessing.dummy import Pool as ThreadPool
-from itertools import repeat
 
 # No diff between poolings except normal Pool gives Exceptions at runtime
 pool = ThreadPool(50)
-files = repeat('raw/classic.wav', times=10)
+total_end_fileset_size = 10000
+
+class DataAugmenter:
+    def __init__(self, file_names, n_times):
+        self.file_names =  file_names
+        self.n_times = n_times
+        self.idx = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.idx < self.n_times:
+            result = self.file_names[self.idx % len(self.file_names)]
+            self.idx += 1
+            return result
+        raise StopIteration
+
+
+file_names = [
+    # '100-44-straight-chords2.wav',
+    # '100-44-straight-fingers.wav',
+    # '100-44-straight-notes.wav',
+    # '100-44-swing-chords.wav',
+    # '100-44-swing-fingers.wav',
+    # '100-44-swing-solo.wav',
+    'test-100-2.wav',
+    'test-100.wav',
+]
+
+augmenter = DataAugmenter(file_names, total_end_fileset_size)
 
 effect_probs = {
-    "chorus": 0.2,
-    "compression": 0.35,
-    "delay": 0.4,
-    "flanger": 0.4,
-    "highpass": 0.1,
-    "lowpass": 0.1,
-    "overdrive": 0.45,
-    "phaser": 0.3,
-    "reverb": 0.55,
-    "tremolo": 0.25,
+    'chorus': 0.2,
+    'compression': 0.35,
+    'delay': 0.4,
+    'flanger': 0.4,
+    'highpass': 0.1,
+    'lowpass': 0.1,
+    'overdrive': 0.35,
+    'phaser': 0.3,
+    'reverb': 0.45,
+    'tremolo': 0.25,
 }
 # ============================================================
 #      EFFECTS
@@ -54,7 +83,7 @@ def highpass_effect(tfm):
     tfm.highpass(frequency=random.randint(30,500))
 
 def lowpass_effect(tfm):
-    tfm.lowpass(frequency=random.randint(3000,15000))
+    tfm.lowpass(frequency=random.randint(3000,10000))
 
 def overdrive_effect(tfm):
     od_gain = random.randint(5,30)
@@ -63,7 +92,7 @@ def overdrive_effect(tfm):
     tfm.gain(limiter=True)
 
 def phaser_effect(tfm):
-    ph_delay = random.randint(0,5)
+    ph_delay = random.randint(1,5)
     ph_decay = random.randint(10,50)/100.
     ph_speed = random.randint(10,200)/100.
     ph_shape = 'sinusoidal' if random.random() < 0.5 else 'triangular'
@@ -81,8 +110,9 @@ def tremolo_effect(tfm):
 
 # ============================================================
 
-def apply_effect(tfm, effect_func, chance):
+def apply_effect(tfm, effect_func, chance, file_meta):
     if random.random() < chance:
+        file_meta['name'] += '-'+effect_func.__name__[:2]
         effect_func(tfm)
         tfm.gain(normalize=True)
 
@@ -90,30 +120,40 @@ def apply_effect(tfm, effect_func, chance):
 def transform(f):
     tfm = sox.Transformer()
 
-    tfm.pitch(n_semitones=(random.randint(-12,12)))
+    pitch_change = random.randint(-12,12)
+    tfm.pitch(n_semitones=pitch_change)
     tfm.gain(normalize=True)
 
-    apply_effect(tfm, compression_effect, effect_probs["compression"])
-    apply_effect(tfm, chorus_effect, effect_probs["chorus"])
-    apply_effect(tfm, delay_effect, effect_probs["delay"])
-    apply_effect(tfm, flanger_effect, effect_probs["flanger"])
-    apply_effect(tfm, highpass_effect, effect_probs["highpass"])
-    apply_effect(tfm, lowpass_effect, effect_probs["lowpass"])
-    apply_effect(tfm, overdrive_effect, effect_probs["overdrive"])
-    apply_effect(tfm, phaser_effect, effect_probs["phaser"])
-    apply_effect(tfm, reverb_effect, effect_probs["reverb"])
-    apply_effect(tfm, tremolo_effect, effect_probs["tremolo"])
+    old_file_short = '-'.join(f[:-4].split('-')[2:4])
+    rand_seq = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    file_meta = {'name': '{:s}-{:s}-pi{:+d}'.format(rand_seq, old_file_short,pitch_change)}
+
+    apply_effect(tfm, compression_effect, effect_probs['compression'], file_meta)
+    apply_effect(tfm, chorus_effect, effect_probs['chorus'], file_meta)
+    apply_effect(tfm, delay_effect, effect_probs['delay'], file_meta)
+    apply_effect(tfm, flanger_effect, effect_probs['flanger'], file_meta)
+    apply_effect(tfm, highpass_effect, effect_probs['highpass'], file_meta)
+    apply_effect(tfm, lowpass_effect, effect_probs['lowpass'], file_meta)
+    apply_effect(tfm, overdrive_effect, effect_probs['overdrive'], file_meta)
+    apply_effect(tfm, phaser_effect, effect_probs['phaser'], file_meta)
+    apply_effect(tfm, reverb_effect, effect_probs['reverb'], file_meta)
+    apply_effect(tfm, tremolo_effect, effect_probs['tremolo'], file_meta)
     tfm.lowpass(5500)
 
     orig_tempo = 100.
     new_tempo = random.randint(50,150)
-    tfm.tempo(new_tempo/orig_tempo)
+    tempo_factor = new_tempo/orig_tempo
+    if abs(tempo_factor - 1.0) <= 0.1:
+        tfm.stretch(tempo_factor)
+    else:
+        tfm.tempo(tempo_factor, audio_type='m')
 
-    tfm.gain(normalize=True)
+    tfm.gain(normalize=True, limiter=True)
+    file_meta['name'] += '-{:d}bpm'.format(new_tempo)
 
-    tfm.build(f, 'out/{}.mp3'.format(uuid.uuid4().hex))
+    tfm.build('raw/data/'+f, '/ssd/augout-test/{}.mp3'.format(file_meta['name']))
 
-pool.map(transform, files)
+pool.map(transform, augmenter)
 
 # Sox Commands I Like:
 
