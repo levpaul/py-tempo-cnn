@@ -69,7 +69,6 @@ class PaperNet(nn.Module):
         # GPU NOT ENOUGH RAM
         # self.mf4_ap = nn.AvgPool2d((m,1))
         # self.mf4_bn = nn.BatchNorm2d(input_chans)
-        # self.mf4_conv1 = nn.Conv2d(input_chans,24,(1,32))
         # self.mf4_conv2 = nn.Conv2d(input_chans,24,(1,64))
         # self.mf4_conv3 = nn.Conv2d(input_chans,24,(1,96))
         # self.mf4_conv4 = nn.Conv2d(input_chans,24,(1,128))
@@ -80,7 +79,9 @@ class PaperNet(nn.Module):
         # ====== DENSE LAYERS ======
         # Dense Layers
         # mfmod_size = 36*40908
-        mfmod_size = 205632
+        # mfmod_size = 205632 # 1 mfmod
+        mfmod_size = 1472688 # 3 mfmod
+        # mfmod_size =   2188836# 4mfmod
         self.dl_bn1 = nn.BatchNorm1d(mfmod_size)
         self.dl_do = nn.Dropout(0.5)
         self.dl_fc1 = nn.Linear(mfmod_size, 64)
@@ -109,38 +110,38 @@ class PaperNet(nn.Module):
         x = self.mf1_conv_final(x)
 
         # SPEED UP BEGINNING TRAINGIN
-        # x = self.mf2_ap(x)
-        # x = self.mf2_bn(x)
-        # c1 = self.mf2_conv1(x)
-        # c2 = self.mf2_conv2(x)
-        # c3 = self.mf2_conv3(x)
-        # c4 = self.mf2_conv4(x)
-        # c5 = self.mf2_conv5(x)
-        # c6 = self.mf2_conv6(x)
-        # x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
-        # x = self.mf2_conv_final(x)
-        #
-        # x = self.mf3_ap(x)
-        # x = self.mf3_bn(x)
-        # c1 = self.mf3_conv1(x)
-        # c2 = self.mf3_conv2(x)
-        # c3 = self.mf3_conv3(x)
-        # c4 = self.mf3_conv4(x)
-        # c5 = self.mf3_conv5(x)
-        # c6 = self.mf3_conv6(x)
-        # x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
-        # x = self.mf3_conv_final(x)
+        x = self.mf2_ap(x)
+        x = self.mf2_bn(x)
+        c1 = self.mf2_conv1(x)
+        c2 = self.mf2_conv2(x)
+        c3 = self.mf2_conv3(x)
+        c4 = self.mf2_conv4(x)
+        c5 = self.mf2_conv5(x)
+        c6 = self.mf2_conv6(x)
+        x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
+        x = self.mf2_conv_final(x)
 
-        # GPU not enough RAM
+        x = self.mf3_ap(x)
+        x = self.mf3_bn(x)
+        c1 = self.mf3_conv1(x)
+        c2 = self.mf3_conv2(x)
+        c3 = self.mf3_conv3(x)
+        c4 = self.mf3_conv4(x)
+        c5 = self.mf3_conv5(x)
+        c6 = self.mf3_conv6(x)
+        x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
+        x = self.mf3_conv_final(x)
+
+        # # GPU not enough RAM
         # x = self.mf4_ap(x)
         # x = self.mf4_bn(x)
-        # c1 = self.mf4_conv1(x)
-        # c2 = self.mf4_conv2(x)
-        # c3 = self.mf4_conv3(x)
+        # # c1 = self.mf4_conv1(x)
+        # # c2 = self.mf4_conv2(x)
+        # # c3 = self.mf4_conv3(x)
         # c4 = self.mf4_conv4(x)
         # c5 = self.mf4_conv5(x)
         # c6 = self.mf4_conv6(x)
-        # x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
+        # x = torch.cat((c4, c5,c6), dim=3)
         # x = self.mf4_conv_final(x)
 
         # ====== DENSE LAYERS ======
@@ -240,10 +241,6 @@ def test(net, loader, device, criterion):
             data, targets = data.to(device), targets.to(device)
             out = net(data)
             pred = out.argmax(dim=1, keepdim=True)
-            if loss == 0:
-                print('out', out)
-                print('pred', pred[:5])
-                print('label', targets[:5])
             loss += criterion(out, targets).item()
             correct += pred.eq(targets.view_as(pred)).sum().item()
 
@@ -297,17 +294,17 @@ def run():
     if cuda:
         net = net.cuda().half()
 
-    opt = optim.SGD(net.parameters(), lr=0.01)
     # criterion = nn.CrossEntropyLoss()
     criterion = nn.NLLLoss()
     # default eps causes NaNs for 16bit training
+    opt = optim.SGD(net.parameters(), lr=0.01)
     # opt = optim.Adam(net.parameters(), lr=0.01, eps=1e-4) # <- deconverged to NaNs at 2.5 epochs
 
     for e in range(start_epoch,epochs+1):
         print('Beginning training at epoch {:d}'.format(e))
         train(net, tr_loader, device, opt, criterion)
         test(net, te_loader, device, criterion)
-        # torch.save(net.state_dict(), 'saves/nn-{:s}-{:04d}.pt'.format(args.network, e))
+        torch.save(net.state_dict(), 'saves/nn-{:s}-{:04d}.pt'.format(args.network, e))
 
     # Load like so:
     # newnet = Net()

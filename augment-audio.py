@@ -4,12 +4,23 @@
 import sox
 import string
 import random
+import argparse
 
 from multiprocessing.dummy import Pool as ThreadPool
 
+# ========================================================
+#   Arg Parsing
+# ========================================================
+def parse_args():
+    parser = argparse.ArgumentParser(description='Data augmentation script - pass in a directory of ')
+    parser.add_argument('-n', '--end-dataset-size', type=int, default=100000, help='Specify the total number of files to generate')
+    parser.add_argument('-s', '--source-dir', required=True, help='The directory the train and or test directories are in')
+    parser.add_argument('-o', '--output-dir', required=True, help='The directory to use for outputting augmented data into')
+    return parser.parse_args()
+
+# ========================================================
 # No diff between poolings except normal Pool gives Exceptions at runtime
 pool = ThreadPool(50)
-total_end_fileset_size = 10000
 
 class DataAugmenter:
     def __init__(self, file_names, n_times):
@@ -39,7 +50,6 @@ file_names = [
     'test-100.wav',
 ]
 
-augmenter = DataAugmenter(file_names, total_end_fileset_size)
 
 effect_probs = {
     'chorus': 0.2,
@@ -153,7 +163,17 @@ def transform(f):
 
     tfm.build('raw/data/'+f, '/ssd/augout-test/{}.mp3'.format(file_meta['name']))
 
-pool.map(transform, augmenter)
+
+def run():
+    args = parse_args()
+    print("Args:", args)
+    # augmenter = DataAugmenter(file_names, args.end_dataset_size)
+    # pool.map(transform, augmenter)
+
+if __name__ == '__main__':
+    run()
+
+
 
 # Sox Commands I Like:
 
