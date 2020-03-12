@@ -5,14 +5,13 @@ import glob, os
 import librosa
 import numpy as np
 
-from multiprocessing import Pool as ThreadPool
 from multiprocessing import cpu_count
 
 win_len = 1024
 output_dir = ''
 
 def extract_spectro(f):
-    global output_dir
+    output_dir = os.path.join(os.path.dirname(f), '../specs/')
     print('extracting spec of ', f)
     if not f.endswith('.mp3'):
         print('bad file')
@@ -22,7 +21,6 @@ def extract_spectro(f):
     hop_len = win_len // 2
     data = librosa.feature.melspectrogram(y,sr,n_fft=win_len,hop_length=hop_len,power=1,n_mels=40,fmin=20,fmax=5000)
     data = data.astype(np.float16)
-    print('saving spec of ', f)
     np.save('{}/{}.npy'.format(output_dir, os.path.basename(f)[:-4]), data)
 
 def parse_args():
@@ -36,8 +34,6 @@ def run():
     args = parse_args()
     output_dir = args.output_folder
 
-    pool = ThreadPool(cpu_count())
-    pool.map(extract_spectro, glob.iglob(args.folder + '/**', recursive=False))
 
 if __name__ == '__main__':
     run()

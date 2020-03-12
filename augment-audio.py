@@ -1,48 +1,69 @@
 #!/usr/bin/env python
 
-
-import string
-import random
 import argparse
+import os
+from pathlib import Path
+import math
+import random
+import string
+import glob
 
-from multiprocessing.dummy import Pool as ThreadPoolpool
 from multiprocessing import cpu_count
+from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import Pool
+
+from lib.data_augmenter import DataAugmenter, transform
+from lib.gen_spectrograms import extract_spectro
+from lib.squash_spectros import squash_spectros
 
 # ========================================================
 #   Arg Parsing
 # ========================================================
 def parse_args():
-    parser = argparse.ArgumentParser(description='Data augmentation script - pass in a directory which contains a test or train (or both) directories containing audio (wav) files.')
+    parser = argparse.ArgumentParser(description='Data augmentation script - pass in a directory which contains a test and train directory containing audio (wav) files.')
     parser.add_argument('-n', '--end-dataset-size', type=int, default=100000, help='Specify the total number of files to generate')
-    parser.add_argument('-s', '--source-dir', required=True, help='The directory the train and or test directories are in')
+    parser.add_argument('-s', '--source-dir', required=True, help='The directory the train and test directories are in')
     parser.add_argument('-o', '--output-dir', required=True, help='The directory to use for outputting augmented data into')
-    parser.add_argument('-t', '--augment-type', choices=['train', 'test', 'both'], default='both', help='The type of datasets to compile')
     parser.add_argument('-j', '--number-workers', type=int, default=cpu_count(), help='The number of workers to use for parallel processing')
     return parser.parse_args()
 
 # ========================================================
 # No diff between poolings except normal Pool gives Exceptions at runtime
 
-def augment_data(source_dir, out_dir, train_set, test_set, num_workers):
-    print('To implement')
+def augment_data(n, source_dir, out_dir, num_workers):
+    Path(os.path.join(out_dir, 'train/mp3s')).mkdir(parents=True, exist_ok=False)
+    Path(os.path.join(out_dir, 'test/mp3s')).mkdir(parents=True, exist_ok=False)
+    # Create data augmentor
+    train_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'train'), output_dir=os.path.join(out_dir, 'train/mp3s'), n_times=math.ceil(n*0.9))
+    test_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'test'), output_dir=os.path.join(out_dir, 'test/mp3s'), n_times=math.floor(n*0.1))
+    print('Generating training files')
+    pool = ThreadPool(num_workers)
+    pool.starmap(transform, train_augmentor)
+    print('Generating testing files')
+    pool.starmap(transform, test_augmentor)
+    pool.close()
 
-def gen_spectrograms(source_dir, out_dir, train_set, test_set, num_workers):
-    print('To implement')
+def gen_spectrograms(work_dir, num_workers):
+    Path(os.path.join(work_dir, 'train/specs')).mkdir(parents=True, exist_ok=False)
+    Path(os.path.join(work_dir, 'test/specs')).mkdir(parents=True, exist_ok=False)
 
-def squash_to_dataset(source_dir, out_dir, train_set, test_set, num_workers):
-    print('To implement')
+    pool = Pool(num_workers)
+    pool.map(extract_spectro, glob.iglob(work_dir+'/train/mp3s/*.mp3', recursive=False))
+    pool.map(extract_spectro, glob.iglob(work_dir+'/test/mp3s/*.mp3', recursive=False))
+
+def squash_to_dataset(work_dir, out_dir):
+    squash_spectros(work_dir+'/train/specs', out_dir+'/train')
+    squash_spectros(work_dir+'/test/specs', out_dir+'/test')
 
 
 def run():
     args = parse_args()
-    train_set = True if args.augment_type == 'both' or args.augment_type == 'train' else False
-    test_set = True if args.augment_type == 'both' or args.augment_type == 'test' else False
 
-    augment_data(source_dir=args.source_dir, out_dir=args.output_dir, train_set=train_set, test_set=test_set, num_workers=args.number_workers)
-    gen_spectrograms(source_dir=args.source_dir, out_dir=args.output_dir, train_set=train_set, test_set=test_set, num_workers=args.number_workers)
-    squash_to_dataset(source_dir=args.source_dir, out_dir=args.output_dir, train_set=train_set, test_set=test_set, num_workers=args.number_workers)
-    # augmenter = DataAugmenter(file_names, args.end_dataset_size)
-    # pool.map(transform, augmenter)
+    aug_workdir = os.path.join(args.output_dir, 'augmented-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8)))
+
+    augment_data(n=args.end_dataset_size, source_dir=args.source_dir, out_dir=aug_workdir, num_workers=args.number_workers)
+    gen_spectrograms(work_dir=aug_workdir, num_workers=args.number_workers)
+    squash_to_dataset(work_dir=aug_workdir, out_dir=args.output_dir)
 
 if __name__ == '__main__':
     run()
