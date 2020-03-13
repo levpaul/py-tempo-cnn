@@ -2,7 +2,6 @@ import sox
 import random
 import glob
 import string
-import os
 
 class DataAugmenter:
     def __init__(self, source_dir, output_dir, n_times):
@@ -25,16 +24,16 @@ class DataAugmenter:
 
 # TODO: Pass this in as a JSON/YAML file
 effect_probs = {
-    'chorus': 0.2,
-    'compression': 0.35,
-    'delay': 0.4,
-    'flanger': 0.4,
-    'highpass': 0.1,
-    'lowpass': 0.1,
-    'overdrive': 0.35,
-    'phaser': 0.3,
-    'reverb': 0.45,
-    'tremolo': 0.25,
+    'chorus': 0.0,
+    'compression': 0.0,
+    'delay': 0.0,
+    'flanger': 0.0,
+    'highpass': 0.0,
+    'lowpass': 0.0,
+    'overdrive': 0.0,
+    'phaser': 0.0,
+    'reverb': 0.0,
+    'tremolo': 0.0,
 }
 # ============================================================
 #      EFFECTS
@@ -125,12 +124,24 @@ def transform(f, output_dir):
     orig_tempo = 100.
     new_tempo = random.randint(50,150)
     tempo_factor = new_tempo/orig_tempo
-    if abs(tempo_factor - 1.0) <= 0.1:
-        tfm.stretch(tempo_factor)
+    if abs(tempo_factor - 1.0) < 0.1:
+        tfm.stretch(1/tempo_factor)
     else:
         tfm.tempo(tempo_factor, audio_type='m')
+
+    orig_len = sox.file_info.duration(f)
+    new_len = orig_len * (1/tempo_factor)
+
+    # 11.9s is the end sample length of all data
+    window_len = 11.9
+    rand_start = random.random() * (new_len-window_len)
+    rand_end = rand_start + window_len
+    tfm.trim(rand_start, rand_end)
 
     tfm.gain(normalize=True, limiter=True)
     file_meta['name'] += '-{:d}bpm'.format(new_tempo)
 
-    tfm.build(f, '{}/{}.mp3'.format(output_dir, file_meta['name']))
+    new_filename = '{}/{}.wav'.format(output_dir, file_meta['name'])
+    tfm.build(f, new_filename, return_output=True)
+
+

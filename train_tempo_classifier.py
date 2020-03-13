@@ -13,8 +13,7 @@ from torch.utils.data import Dataset, DataLoader
 from os import path
 
 epochs=10000
-bsize=64
-
+bsize=256
 spectro_window_size = 256
 
 class PaperNet(nn.Module):
@@ -159,19 +158,6 @@ class PaperNet(nn.Module):
         # print('output', output.shape)
         return output
 
-
-class MFMod(object):
-    def __init__(self,m, input_chans):
-        self.ap = nn.AvgPool2d((m,1))
-        self.bn = nn.BatchNorm2d(input_chans)
-        self.conv1 = nn.Conv2d(input_chans,24,(1,32))
-        self.conv2 = nn.Conv2d(input_chans,24,(1,64))
-        self.conv3 = nn.Conv2d(input_chans,24,(1,96))
-        self.conv4 = nn.Conv2d(input_chans,24,(1,128))
-        self.conv5 = nn.Conv2d(input_chans,24,(1,192))
-        self.conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
-        self.conv_final = nn.Conv2d(24,36,1)
-
 class BadNet(nn.Module):
     def __init__(self):
         super(BadNet, self).__init__()
@@ -202,84 +188,82 @@ class BadNet(nn.Module):
         output = F.log_softmax(x, dim=1)
         return output
 
-class FMASpectrogramsDataset(Dataset):
-    def __init__(self, train):
+class SpectrogramsDataset(Dataset):
+    def __init__(self, dir, train):
         if train:
-            self.data = np.load('data/fma-train-data.npy')
-            self.labels = np.load('data/fma-train-labels.npy')
+            self.data = np.load(path.join(dir,'train-data.npy'))
+            self.labels = np.load(path.join(dir,'train-labels.npy'))
         else:
-            self.data = np.load('data/fma-test-data.npy')
-            self.labels = np.load('data/fma-test-labels.npy')
+            self.data = np.load(path.join(dir, 'test-data.npy'))
+            self.labels = np.load(path.join(dir, 'test-labels.npy'))
 
     def __len__(self):
-        return self.labels.size
+        return self.labels.shape[0]
 
     def __getitem__(self, idx):
-        d = self.data[idx]
-        max_idx = d.shape[-1] - spectro_window_size
-        lower_idx = random.randint(0, max_idx)
-        upper_idx = lower_idx + spectro_window_size
-        return (self.data[idx,:,:,lower_idx:upper_idx], self.labels[idx].astype(np.long))
+        return (self.data[idx], self.labels[idx])
 
 def train(net, loader, device, opt, criterion):
     net.train()
-    running_loss = 0.
+    # running_loss = 0.
+    correct = 0
     for bidx, (data, targets) in enumerate(loader):
         data, targets = data.to(device), targets.to(device)
         opt.zero_grad()
 
-        outs = net(data)
-        # loss = loss_func(outs, targets)
-        # print('outs', outs, outs.shape)
-        # print('targs', targets)
+        out = net(data)
 
         # loss = F.nll_loss(outs, targets)
         # loss = F.cross_entropy(outs, targets)
-        loss = criterion(outs, targets)
-        loss.backward() # <- compute backprop derivs
+        loss_vec = criterion(out, targets)
+        # running_loss += loss_vec.item()
+        loss_vec.backward() # <- compute backprop derivs
+
+        # Compute acc
+        pred = out.argmax(dim=1, keepdim=True)
+        correct += pred.eq(targets.view_as(pred)).sum().item()
+
         opt.step()
 
-        running_loss += loss.item()
-        if bidx % 5000 == 49:
-            print('[{:5d}] loss: {:0.3f}'.format(bidx+1, running_loss/50))
-            running_loss = 0.
+        # if bidx % 5000 == 49:
+        #     print('[{:5d}] loss: {:0.3f}'.format(bidx+1, running_loss/50))
+        #     running_loss = 0.
+    return 100. * correct / len(loader.dataset)
 
 def test(net, loader, device, criterion):
     net.eval()
-    loss = 0
+    # loss = 0
     correct = 0
     with torch.no_grad():
         for data, targets in loader:
             data, targets = data.to(device), targets.to(device)
             out = net(data)
             pred = out.argmax(dim=1, keepdim=True)
-            if loss == 0:
-                print('out', out)
-                print('pred', pred[:5])
-                print('label', targets[:5])
-            loss += criterion(out, targets).item()
+            # loss += criterion(out, targets).item()
             correct += pred.eq(targets.view_as(pred)).sum().item()
 
-    loss /= len(loader.dataset)
-    print("Test set: Average loss: {:.4f}, Acc: {}/{} ({:.0f}%)\n".format(
-        loss, correct, len(loader.dataset),
-        100. * correct / len(loader.dataset)
-    ))
+    return 100. * correct / len(loader.dataset)
+    # loss /= len(loader.dataset)
+    # return loss
+    # print("Test set: Average loss: {:.4f}, Acc: {}/{} ({:.0f}%)\n".format(
+    #     loss, correct, len(loader.dataset),
+    #     100. * correct / len(loader.dataset)
+    # ))
 
 def parse_args():
     pa = argparse.ArgumentParser()
-    pa.add_argument('-i', '--isolated', required=False)
     pa.add_argument('-n', '--network', default='ssa', help='Select NN to use, can chose from [ssa,bad]')
     pa.add_argument('-r', '--resume', default=False, help='Resume training from a saved model, expected file name format nn-$network-$epoch.pt')
+    pa.add_argument('-d', '--data-dir', required=True, help='Data containing .npy files for training and test data and labels')
     return pa.parse_args()
 
 def run():
     args = parse_args()
 
     print('Initializing Data Loaders...')
-    tr_loader = DataLoader(FMASpectrogramsDataset(train=True),
+    tr_loader = DataLoader(SpectrogramsDataset(train=True, dir=args.data_dir),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
-    te_loader = DataLoader(FMASpectrogramsDataset(train=False),
+    te_loader = DataLoader(SpectrogramsDataset(train=False, dir=args.data_dir),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
 
     if args.resume:
@@ -310,16 +294,17 @@ def run():
     if cuda:
         net = net.cuda().half()
 
-    opt = optim.SGD(net.parameters(), lr=0.01)
+    opt = optim.SGD(net.parameters(), lr=0.001)
     # criterion = nn.CrossEntropyLoss()
     criterion = nn.NLLLoss()
     # default eps causes NaNs for 16bit training
     # opt = optim.Adam(net.parameters(), lr=0.01, eps=1e-4) # <- deconverged to NaNs at 2.5 epochs
 
+    print('ep,train_acc,test_acc')
     for e in range(start_epoch,epochs+1):
-        print('Beginning training at epoch {:d}'.format(e))
-        train(net, tr_loader, device, opt, criterion)
-        test(net, te_loader, device, criterion)
+        tr_acc = train(net, tr_loader, device, opt, criterion)
+        te_acc = test(net, te_loader, device, criterion)
+        print('{:d},{:.2f},{:.2f}'.format(e, tr_acc, te_acc))
         torch.save(net.state_dict(), 'saves/nn-{:s}-{:04d}.pt'.format(args.network, e))
 
     # Load like so:

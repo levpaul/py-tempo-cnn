@@ -7,6 +7,7 @@ import math
 import random
 import string
 import glob
+import logging
 
 from multiprocessing import cpu_count
 from multiprocessing.dummy import Pool as ThreadPool
@@ -31,11 +32,11 @@ def parse_args():
 # No diff between poolings except normal Pool gives Exceptions at runtime
 
 def augment_data(n, source_dir, out_dir, num_workers):
-    Path(os.path.join(out_dir, 'train/mp3s')).mkdir(parents=True, exist_ok=False)
-    Path(os.path.join(out_dir, 'test/mp3s')).mkdir(parents=True, exist_ok=False)
+    Path(os.path.join(out_dir, 'train/wavs')).mkdir(parents=True, exist_ok=False)
+    Path(os.path.join(out_dir, 'test/wavs')).mkdir(parents=True, exist_ok=False)
     # Create data augmentor
-    train_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'train'), output_dir=os.path.join(out_dir, 'train/mp3s'), n_times=math.ceil(n*0.9))
-    test_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'test'), output_dir=os.path.join(out_dir, 'test/mp3s'), n_times=math.floor(n*0.1))
+    train_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'train'), output_dir=os.path.join(out_dir, 'train/wavs'), n_times=math.ceil(n*0.9))
+    test_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'test'), output_dir=os.path.join(out_dir, 'test/wavs'), n_times=math.floor(n*0.1))
     print('Generating training files')
     pool = ThreadPool(num_workers)
     pool.starmap(transform, train_augmentor)
@@ -48,13 +49,12 @@ def gen_spectrograms(work_dir, num_workers):
     Path(os.path.join(work_dir, 'test/specs')).mkdir(parents=True, exist_ok=False)
 
     pool = Pool(num_workers)
-    pool.map(extract_spectro, glob.iglob(work_dir+'/train/mp3s/*.mp3', recursive=False))
-    pool.map(extract_spectro, glob.iglob(work_dir+'/test/mp3s/*.mp3', recursive=False))
+    pool.map(extract_spectro, glob.iglob(work_dir+'/train/wavs/*.wav', recursive=False))
+    pool.map(extract_spectro, glob.iglob(work_dir+'/test/wavs/*.wav', recursive=False))
 
-def squash_to_dataset(work_dir, out_dir):
-    squash_spectros(work_dir+'/train/specs', out_dir+'/train')
-    squash_spectros(work_dir+'/test/specs', out_dir+'/test')
-
+def squash_to_dataset(n, work_dir, out_dir):
+    squash_spectros(work_dir+'/train/specs', out_dir+'/train', math.ceil(n*0.9))
+    squash_spectros(work_dir+'/test/specs', out_dir+'/test', math.floor(n*0.1))
 
 def run():
     args = parse_args()
@@ -63,7 +63,8 @@ def run():
 
     augment_data(n=args.end_dataset_size, source_dir=args.source_dir, out_dir=aug_workdir, num_workers=args.number_workers)
     gen_spectrograms(work_dir=aug_workdir, num_workers=args.number_workers)
-    squash_to_dataset(work_dir=aug_workdir, out_dir=args.output_dir)
+    squash_to_dataset(n=args.end_dataset_size, work_dir=aug_workdir, out_dir=args.output_dir)
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.ERROR)
     run()
