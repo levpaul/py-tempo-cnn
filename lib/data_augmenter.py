@@ -24,16 +24,16 @@ class DataAugmenter:
 
 # TODO: Pass this in as a JSON/YAML file
 effect_probs = {
-    'chorus': 0.0,
-    'compression': 0.0,
-    'delay': 0.0,
-    'flanger': 0.0,
-    'highpass': 0.0,
-    'lowpass': 0.0,
-    'overdrive': 0.0,
-    'phaser': 0.0,
-    'reverb': 0.0,
-    'tremolo': 0.0,
+    'chorus': 0.2,
+    'compression': 0.3,
+    'delay': 0.3,
+    'flanger': 0.2,
+    'highpass': 0.1,
+    'lowpass': 0.1,
+    'overdrive': 0.2,
+    'phaser': 0.2,
+    'reverb': 0.3,
+    'tremolo': 0.2,
 }
 # ============================================================
 #      EFFECTS
@@ -132,8 +132,8 @@ def transform(f, output_dir):
     orig_len = sox.file_info.duration(f)
     new_len = orig_len * (1/tempo_factor)
 
-    # 11.9s is the end sample length of all data
-    window_len = 11.9
+    # 11.9s is the end sample length of all data (with addition 0.1 for buffer)
+    window_len = 11.9 + 0.1
     rand_start = random.random() * (new_len-window_len)
     rand_end = rand_start + window_len
     tfm.trim(rand_start, rand_end)

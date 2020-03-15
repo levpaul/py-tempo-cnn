@@ -7,18 +7,28 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 import argparse
-import random
 import re
 from torch.utils.data import Dataset, DataLoader
-from os import path
+from os import path, remove
+from pathlib import Path
 
 epochs=10000
-bsize=256
+bsize=192
 spectro_window_size = 256
 
-class PaperNet(nn.Module):
+def parse_args():
+    pa = argparse.ArgumentParser()
+
+    pa.add_argument('-n', '--network', default='tempo', help='Select NN to use, can chose from [tempo,basic]')
+    pa.add_argument('-r', '--resume', default=False, help='Resume training from a saved model, expected file name format nn-$network-$epoch.pt')
+    pa.add_argument('-d', '--data-dir', required=True, help='Data containing .npy files for training and test data and labels')
+    pa.add_argument('-l', '--learning-rate', default=0.01, help='Set learning rate of optimizer')
+
+    return pa.parse_args()
+
+class TempoNet(nn.Module):
     def __init__(self):
-        super(PaperNet, self).__init__()
+        super(TempoNet, self).__init__()
         # Short Conv NN x3
 
         # Spectros come in at 40 x 256
@@ -81,6 +91,7 @@ class PaperNet(nn.Module):
         # Dense Layers
         # mfmod_size = 36*40908
         mfmod_size = 205632
+        mfmod_size = 1472688 # 3mfmod
         self.dl_bn1 = nn.BatchNorm1d(mfmod_size)
         self.dl_do = nn.Dropout(0.5)
         self.dl_fc1 = nn.Linear(mfmod_size, 64)
@@ -109,27 +120,27 @@ class PaperNet(nn.Module):
         x = self.mf1_conv_final(x)
 
         # SPEED UP BEGINNING TRAINGIN
-        # x = self.mf2_ap(x)
-        # x = self.mf2_bn(x)
-        # c1 = self.mf2_conv1(x)
-        # c2 = self.mf2_conv2(x)
-        # c3 = self.mf2_conv3(x)
-        # c4 = self.mf2_conv4(x)
-        # c5 = self.mf2_conv5(x)
-        # c6 = self.mf2_conv6(x)
-        # x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
-        # x = self.mf2_conv_final(x)
-        #
-        # x = self.mf3_ap(x)
-        # x = self.mf3_bn(x)
-        # c1 = self.mf3_conv1(x)
-        # c2 = self.mf3_conv2(x)
-        # c3 = self.mf3_conv3(x)
-        # c4 = self.mf3_conv4(x)
-        # c5 = self.mf3_conv5(x)
-        # c6 = self.mf3_conv6(x)
-        # x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
-        # x = self.mf3_conv_final(x)
+        x = self.mf2_ap(x)
+        x = self.mf2_bn(x)
+        c1 = self.mf2_conv1(x)
+        c2 = self.mf2_conv2(x)
+        c3 = self.mf2_conv3(x)
+        c4 = self.mf2_conv4(x)
+        c5 = self.mf2_conv5(x)
+        c6 = self.mf2_conv6(x)
+        x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
+        x = self.mf2_conv_final(x)
+
+        x = self.mf3_ap(x)
+        x = self.mf3_bn(x)
+        c1 = self.mf3_conv1(x)
+        c2 = self.mf3_conv2(x)
+        c3 = self.mf3_conv3(x)
+        c4 = self.mf3_conv4(x)
+        c5 = self.mf3_conv5(x)
+        c6 = self.mf3_conv6(x)
+        x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
+        x = self.mf3_conv_final(x)
 
         # GPU not enough RAM
         # x = self.mf4_ap(x)
@@ -158,9 +169,9 @@ class PaperNet(nn.Module):
         # print('output', output.shape)
         return output
 
-class BadNet(nn.Module):
+class BasicNet(nn.Module):
     def __init__(self):
-        super(BadNet, self).__init__()
+        super(BasicNet, self).__init__()
 
         # Spectros come in at 40 x 256
         self.conv1 = nn.Conv2d(1, 6, 3) # 6x38x254
@@ -250,12 +261,6 @@ def test(net, loader, device, criterion):
     #     100. * correct / len(loader.dataset)
     # ))
 
-def parse_args():
-    pa = argparse.ArgumentParser()
-    pa.add_argument('-n', '--network', default='ssa', help='Select NN to use, can chose from [ssa,bad]')
-    pa.add_argument('-r', '--resume', default=False, help='Resume training from a saved model, expected file name format nn-$network-$epoch.pt')
-    pa.add_argument('-d', '--data-dir', required=True, help='Data containing .npy files for training and test data and labels')
-    return pa.parse_args()
 
 def run():
     args = parse_args()
@@ -278,10 +283,10 @@ def run():
         start_epoch = 1
 
     print('Initializing network and optimizer')
-    if args.network == 'ssa':
-        net = PaperNet()
-    elif args.network == 'bad':
-        net = BadNet()
+    if args.network == 'tempo':
+        net = TempoNet()
+    elif args.network == 'basic':
+        net = BasicNet()
     else:
         print('Invalid neural network; "{}" is not supported'.format(args.network))
         exit(1)
@@ -294,18 +299,23 @@ def run():
     if cuda:
         net = net.cuda().half()
 
-    opt = optim.SGD(net.parameters(), lr=0.001)
+    opt = optim.SGD(net.parameters(), lr=args.learning_rate)
     # criterion = nn.CrossEntropyLoss()
     criterion = nn.NLLLoss()
     # default eps causes NaNs for 16bit training
     # opt = optim.Adam(net.parameters(), lr=0.01, eps=1e-4) # <- deconverged to NaNs at 2.5 epochs
+    save_dir = path.join(args.data_dir, 'saves')
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    save_format = save_dir+'/nn-{:s}-lr{:f}-ep{:04d}.pt'
 
     print('ep,train_acc,test_acc')
     for e in range(start_epoch,epochs+1):
         tr_acc = train(net, tr_loader, device, opt, criterion)
         te_acc = test(net, te_loader, device, criterion)
         print('{:d},{:.2f},{:.2f}'.format(e, tr_acc, te_acc))
-        torch.save(net.state_dict(), 'saves/nn-{:s}-{:04d}.pt'.format(args.network, e))
+        torch.save(net.state_dict(), save_format.format(args.network, args.learning_rate, e))
+        if e > 1:
+            remove(save_format.format(args.network, args.learning_rate, e-1))
 
     # Load like so:
     # newnet = Net()
