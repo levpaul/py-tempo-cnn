@@ -115,6 +115,22 @@ def apply_effect(tfm, effect_func, chance, file_meta):
 def transform(f, output_dir):
     tfm = sox.Transformer()
 
+    # Get new tempo
+    new_tempo = random.randint(50,150)
+    orig_tempo = 100.
+    tempo_factor = new_tempo/orig_tempo
+
+    # Create new random cut based on new tempo and save
+    window_len = 11.9 + 0.1
+    scaled_win = window_len * tempo_factor
+    orig_len = sox.file_info.duration(f)
+    rand_start = random.random() * (orig_len-scaled_win)
+    rand_end = rand_start + scaled_win
+    tfm.trim(rand_start, rand_end)
+    short_f = os.path.join(output_dir, ''.join(random.choices(string.ascii_uppercase + string.digits, k=30)) + '.wav')
+    tfm.build(f,short_f)
+    tfm.clear_effects()
+
     pitch_change = random.randint(-12,12)
     tfm.pitch(n_semitones=pitch_change)
     tfm.gain(normalize=True)
@@ -132,47 +148,21 @@ def transform(f, output_dir):
     apply_effect(tfm, overdrive_effect, effect_probs['overdrive'], file_meta)
     apply_effect(tfm, phaser_effect, effect_probs['phaser'], file_meta)
     apply_effect(tfm, reverb_effect, effect_probs['reverb'], file_meta)
-    apply_effect(tfm, tremolo_effect, effect_probs['tremolo'], file_meta)
+    if not '-re' in file_meta['name']:  # TODO: Reverb and tremolo BOTH in a sox chain cuts the lenght in half??
+        apply_effect(tfm, tremolo_effect, effect_probs['tremolo'], file_meta)
     tfm.lowpass(5500)
 
-    orig_tempo = 100.
-    new_tempo = random.randint(50,150)
-    tempo_factor = new_tempo/orig_tempo
     if abs(tempo_factor - 1.0) < 0.1:
         tfm.stretch(1/tempo_factor)
     else:
         tfm.tempo(tempo_factor, audio_type='m')
     tfm.gain(normalize=True, limiter=True)
 
-    orig_len = sox.file_info.duration(f)
-    new_len = orig_len * (1/tempo_factor)
-
     file_meta['name'] += '-{:d}bpm'.format(new_tempo)
-    tmp_filename = '{}/{}-tmp.wav'.format(output_dir, file_meta['name'])
-    tfm.build(f, tmp_filename, return_output=True)
-
-    tfm.clear_effects()
-    # 11.9s is the end sample length of all data (with addition 0.1 for buffer)
-    window_len = 11.9 + 0.1
-    file_len = sox.file_info.duration(tmp_filename)
-    rand_start = random.random() * (file_len-window_len)
-    rand_end = rand_start + window_len
-    tfm.trim(rand_start, rand_end)
-
     final_filename = '{}/{}.wav'.format(output_dir, file_meta['name'])
-    tfm.build(tmp_filename, final_filename, return_output=True)
-    os.remove(tmp_filename)
+    tfm.build(short_f, final_filename, return_output=True)
 
-    tmp_filename = final_filename
-    if sox.file_info.duration(tmp_filename) < 11.9:
-        print('FILELENGTH ORIGIN:', sox.file_info.duration(f))
-        prev_len = sox.file_info.duration(tmp_filename)
-        newnewfn = '{}/new-{}.wav'.format(output_dir, file_meta['name'])
-        st, out, err = tfm.build(f, newnewfn, return_output=True)
-        if sox.file_info.duration(newnewfn) < 11.9:
-            print('errf:',tmp_filename,'len:',sox.file_info.duration(newnewfn),'prvlen', prev_len,out)
-        else:
-            print('FIXEDFerrf:',tmp_filename,'len:',sox.file_info.duration(newnewfn),'prvlen', prev_len,out)
-
-        # print('Something went wrong saving {:s} - randstart: {}, randend: {} globals: {}'.format(new_filename, rand_start, rand_end, tfm.effects))
-        # tfm.build('/tmp/shit/'+os.path.basename(new_filename))
+    if sox.file_info.duration(final_filename) < 11:
+        print('fuck you ', short_f, 'shortdir', sox.file_info.duration(short_f),'finaldur:',sox.file_info.duration(final_filename), tempo_factor, new_tempo, 'start', rand_start, 'end', rand_end, tfm.effects)
+    else:
+        os.remove(short_f)
