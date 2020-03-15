@@ -127,9 +127,6 @@ def transform(f, output_dir):
     rand_start = random.random() * (orig_len-scaled_win)
     rand_end = rand_start + scaled_win
     tfm.trim(rand_start, rand_end)
-    short_f = os.path.join(output_dir, ''.join(random.choices(string.ascii_uppercase + string.digits, k=30)) + '.wav')
-    tfm.build(f,short_f)
-    tfm.clear_effects()
 
     pitch_change = random.randint(-12,12)
     tfm.pitch(n_semitones=pitch_change)
@@ -160,9 +157,4 @@ def transform(f, output_dir):
 
     file_meta['name'] += '-{:d}bpm'.format(new_tempo)
     final_filename = '{}/{}.wav'.format(output_dir, file_meta['name'])
-    tfm.build(short_f, final_filename, return_output=True)
-
-    if sox.file_info.duration(final_filename) < 11:
-        print('fuck you ', short_f, 'shortdir', sox.file_info.duration(short_f),'finaldur:',sox.file_info.duration(final_filename), tempo_factor, new_tempo, 'start', rand_start, 'end', rand_end, tfm.effects)
-    else:
-        os.remove(short_f)
+    tfm.build(f, final_filename, return_output=True)
