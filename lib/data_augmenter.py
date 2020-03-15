@@ -2,6 +2,7 @@ import sox
 import random
 import glob
 import string
+import os
 
 class DataAugmenter:
     def __init__(self, source_dir, output_dir, n_times):
@@ -35,6 +36,19 @@ effect_probs = {
     'reverb': 0.3,
     'tremolo': 0.2,
 }
+#
+# effect_probs = {
+#     'chorus': 0.0,
+#     'compression': 0.0,
+#     'delay': 0.0,
+#     'flanger': 0.0,
+#     'highpass': 0.0,
+#     'lowpass': 0.0,
+#     'overdrive': 0.0,
+#     'phaser': 0.0,
+#     'reverb': 0.0,
+#     'tremolo': 0.0,
+# }
 # ============================================================
 #      EFFECTS
 # ============================================================
@@ -106,7 +120,7 @@ def transform(f, output_dir):
     tfm.gain(normalize=True)
 
     old_file_short = '-'.join(f[:-4].split('-')[2:4])
-    rand_seq = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    rand_seq = ''.join(random.choices(string.ascii_uppercase + string.digits, k=9))
     file_meta = {'name': '{:s}-{:s}-pi{:+d}'.format(rand_seq, old_file_short,pitch_change)}
 
     apply_effect(tfm, compression_effect, effect_probs['compression'], file_meta)
@@ -128,20 +142,37 @@ def transform(f, output_dir):
         tfm.stretch(1/tempo_factor)
     else:
         tfm.tempo(tempo_factor, audio_type='m')
+    tfm.gain(normalize=True, limiter=True)
 
     orig_len = sox.file_info.duration(f)
     new_len = orig_len * (1/tempo_factor)
 
+    file_meta['name'] += '-{:d}bpm'.format(new_tempo)
+    tmp_filename = '{}/{}-tmp.wav'.format(output_dir, file_meta['name'])
+    tfm.build(f, tmp_filename, return_output=True)
+
+    tfm.clear_effects()
     # 11.9s is the end sample length of all data (with addition 0.1 for buffer)
     window_len = 11.9 + 0.1
-    rand_start = random.random() * (new_len-window_len)
+    file_len = sox.file_info.duration(tmp_filename)
+    rand_start = random.random() * (file_len-window_len)
     rand_end = rand_start + window_len
     tfm.trim(rand_start, rand_end)
 
-    tfm.gain(normalize=True, limiter=True)
-    file_meta['name'] += '-{:d}bpm'.format(new_tempo)
+    final_filename = '{}/{}.wav'.format(output_dir, file_meta['name'])
+    tfm.build(tmp_filename, final_filename, return_output=True)
+    os.remove(tmp_filename)
 
-    new_filename = '{}/{}.wav'.format(output_dir, file_meta['name'])
-    tfm.build(f, new_filename, return_output=True)
+    tmp_filename = final_filename
+    if sox.file_info.duration(tmp_filename) < 11.9:
+        print('FILELENGTH ORIGIN:', sox.file_info.duration(f))
+        prev_len = sox.file_info.duration(tmp_filename)
+        newnewfn = '{}/new-{}.wav'.format(output_dir, file_meta['name'])
+        st, out, err = tfm.build(f, newnewfn, return_output=True)
+        if sox.file_info.duration(newnewfn) < 11.9:
+            print('errf:',tmp_filename,'len:',sox.file_info.duration(newnewfn),'prvlen', prev_len,out)
+        else:
+            print('FIXEDFerrf:',tmp_filename,'len:',sox.file_info.duration(newnewfn),'prvlen', prev_len,out)
 
-
+        # print('Something went wrong saving {:s} - randstart: {}, randend: {} globals: {}'.format(new_filename, rand_start, rand_end, tfm.effects))
+        # tfm.build('/tmp/shit/'+os.path.basename(new_filename))

@@ -38,7 +38,7 @@ def augment_data(n, source_dir, out_dir, num_workers):
     train_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'train'), output_dir=os.path.join(out_dir, 'train/wavs'), n_times=math.ceil(n*0.9))
     test_augmentor = DataAugmenter(source_dir=os.path.join(source_dir, 'test'), output_dir=os.path.join(out_dir, 'test/wavs'), n_times=math.floor(n*0.1))
     print('Generating training wav files')
-    pool = ThreadPool(num_workers)
+    pool = Pool(num_workers)
     pool.starmap(transform, train_augmentor)
     print('DONE')
     print('Generating testing wav files')
@@ -50,7 +50,7 @@ def gen_spectrograms(work_dir, num_workers):
     Path(os.path.join(work_dir, 'train/specs')).mkdir(parents=True, exist_ok=False)
     Path(os.path.join(work_dir, 'test/specs')).mkdir(parents=True, exist_ok=False)
 
-    pool = Pool(num_workers)
+    pool = ThreadPool(num_workers)
 
     print('Extracting training spectrograms')
     pool.map(extract_spectro, glob.iglob(work_dir+'/train/wavs/*.wav', recursive=False))
