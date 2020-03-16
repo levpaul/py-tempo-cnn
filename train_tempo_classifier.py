@@ -149,7 +149,7 @@ def run():
         print('{:d},{:.2f},{:.2f}'.format(e, tr_acc, te_acc))
         torch.save(net.state_dict(), epoch_save_format.format(e))
         if e > 1:
-            remove(epoch_save_format.format(args.network, args.learning_rate, e-1))
+            remove(epoch_save_format.format(e-1))
 
 if __name__ == '__main__':
     run()
