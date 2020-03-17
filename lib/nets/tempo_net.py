@@ -42,17 +42,17 @@ class TempoNet(nn.Module):
         self.mf2_conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
         self.mf2_conv_final = nn.Conv2d(24,36,1)
 
-        self.mf3_ap = nn.AvgPool2d((m,1))
-        self.mf3_bn = nn.BatchNorm2d(input_chans)
-        self.mf3_conv1 = nn.Conv2d(input_chans,24,(1,32))
-        self.mf3_conv2 = nn.Conv2d(input_chans,24,(1,64))
-        self.mf3_conv3 = nn.Conv2d(input_chans,24,(1,96))
-        self.mf3_conv4 = nn.Conv2d(input_chans,24,(1,128))
-        self.mf3_conv5 = nn.Conv2d(input_chans,24,(1,192))
-        self.mf3_conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
-        self.mf3_conv_final = nn.Conv2d(24,36,1)
-
-        # GPU NOT ENOUGH RAM
+        # self.mf3_ap = nn.AvgPool2d((m,1))
+        # self.mf3_bn = nn.BatchNorm2d(input_chans)
+        # self.mf3_conv1 = nn.Conv2d(input_chans,24,(1,32))
+        # self.mf3_conv2 = nn.Conv2d(input_chans,24,(1,64))
+        # self.mf3_conv3 = nn.Conv2d(input_chans,24,(1,96))
+        # self.mf3_conv4 = nn.Conv2d(input_chans,24,(1,128))
+        # self.mf3_conv5 = nn.Conv2d(input_chans,24,(1,192))
+        # self.mf3_conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
+        # self.mf3_conv_final = nn.Conv2d(24,36,1)
+        #
+        # # GPU NOT ENOUGH RAM
         # self.mf4_ap = nn.AvgPool2d((m,1))
         # self.mf4_bn = nn.BatchNorm2d(input_chans)
         # self.mf4_conv1 = nn.Conv2d(input_chans,24,(1,32))
@@ -66,8 +66,10 @@ class TempoNet(nn.Module):
         # ====== DENSE LAYERS ======
         # Dense Layers
         # mfmod_size = 36*40908
-        mfmod_size = 205632
-        mfmod_size = 1472688 # 3mfmod
+        mfmod_size = 205632 #1mod
+        mfmod_size=508896
+        # mfmod_size = 1472688 #3mod
+        # mfmod_size = 4391064 #4mod
         self.dl_bn1 = nn.BatchNorm1d(mfmod_size)
         self.dl_do = nn.Dropout(0.5)
         self.dl_fc1 = nn.Linear(mfmod_size, 64)
@@ -107,18 +109,18 @@ class TempoNet(nn.Module):
         x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
         x = self.mf2_conv_final(x)
 
-        x = self.mf3_ap(x)
-        x = self.mf3_bn(x)
-        c1 = self.mf3_conv1(x)
-        c2 = self.mf3_conv2(x)
-        c3 = self.mf3_conv3(x)
-        c4 = self.mf3_conv4(x)
-        c5 = self.mf3_conv5(x)
-        c6 = self.mf3_conv6(x)
-        x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
-        x = self.mf3_conv_final(x)
-
-        # GPU not enough RAM
+        # x = self.mf3_ap(x)
+        # x = self.mf3_bn(x)
+        # c1 = self.mf3_conv1(x)
+        # c2 = self.mf3_conv2(x)
+        # c3 = self.mf3_conv3(x)
+        # c4 = self.mf3_conv4(x)
+        # c5 = self.mf3_conv5(x)
+        # c6 = self.mf3_conv6(x)
+        # x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
+        # x = self.mf3_conv_final(x)
+        #
+        # # GPU not enough RAM
         # x = self.mf4_ap(x)
         # x = self.mf4_bn(x)
         # c1 = self.mf4_conv1(x)

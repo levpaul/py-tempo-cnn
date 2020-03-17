@@ -15,7 +15,7 @@ from pathlib import Path
 from lib.datasets.spectrograms import SpectrogramsDataset
 
 epochs=10000
-bsize=192
+bsize=256
 spectro_window_size = 256
 
 DEFAULT_SAVE_FORMAT = 'default'
