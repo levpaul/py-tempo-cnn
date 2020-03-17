@@ -2,7 +2,7 @@
 
 #####Tempo only Dataset 100k
 - mfmod1 lr01-big, bs256 ep300=(99.95,16.69)
-- mfmod3 lr01-big, bs256 ep50=(88.58,33.11)
+- mfmod2 lr01-big, bs256 ep50=(95.3,22.46) <- 4.75hrs
 - mfmod3 lr01-big, bs128 ep50=(88.58,33.11)
 - mfmod4 lr01-big, bs32, lr01, ep30=(30.16,11.9) <- 23hrs train
 

@@ -30,17 +30,17 @@ class TempoNet(nn.Module):
         self.mf1_conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
         self.mf1_conv_final = nn.Conv2d(24,36,1)
 
-        m=2
-        input_chans=36
-        self.mf2_ap = nn.AvgPool2d((m,1))
-        self.mf2_bn = nn.BatchNorm2d(input_chans)
-        self.mf2_conv1 = nn.Conv2d(input_chans,24,(1,32))
-        self.mf2_conv2 = nn.Conv2d(input_chans,24,(1,64))
-        self.mf2_conv3 = nn.Conv2d(input_chans,24,(1,96))
-        self.mf2_conv4 = nn.Conv2d(input_chans,24,(1,128))
-        self.mf2_conv5 = nn.Conv2d(input_chans,24,(1,192))
-        self.mf2_conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
-        self.mf2_conv_final = nn.Conv2d(24,36,1)
+        # m=2
+        # input_chans=36
+        # self.mf2_ap = nn.AvgPool2d((m,1))
+        # self.mf2_bn = nn.BatchNorm2d(input_chans)
+        # self.mf2_conv1 = nn.Conv2d(input_chans,24,(1,32))
+        # self.mf2_conv2 = nn.Conv2d(input_chans,24,(1,64))
+        # self.mf2_conv3 = nn.Conv2d(input_chans,24,(1,96))
+        # self.mf2_conv4 = nn.Conv2d(input_chans,24,(1,128))
+        # self.mf2_conv5 = nn.Conv2d(input_chans,24,(1,192))
+        # self.mf2_conv6 = nn.Conv2d(input_chans,24,(1,244)) # This is a single fullscale, cutoff by previous CNNs
+        # self.mf2_conv_final = nn.Conv2d(24,36,1)
 
         # self.mf3_ap = nn.AvgPool2d((m,1))
         # self.mf3_bn = nn.BatchNorm2d(input_chans)
@@ -67,7 +67,7 @@ class TempoNet(nn.Module):
         # Dense Layers
         # mfmod_size = 36*40908
         mfmod_size = 205632 #1mod
-        mfmod_size=508896
+        # mfmod_size=508896
         # mfmod_size = 1472688 #3mod
         # mfmod_size = 4391064 #4mod
         self.dl_bn1 = nn.BatchNorm1d(mfmod_size)
@@ -98,16 +98,16 @@ class TempoNet(nn.Module):
         x = self.mf1_conv_final(x)
 
         # SPEED UP BEGINNING TRAINGIN
-        x = self.mf2_ap(x)
-        x = self.mf2_bn(x)
-        c1 = self.mf2_conv1(x)
-        c2 = self.mf2_conv2(x)
-        c3 = self.mf2_conv3(x)
-        c4 = self.mf2_conv4(x)
-        c5 = self.mf2_conv5(x)
-        c6 = self.mf2_conv6(x)
-        x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
-        x = self.mf2_conv_final(x)
+        # x = self.mf2_ap(x)
+        # x = self.mf2_bn(x)
+        # c1 = self.mf2_conv1(x)
+        # c2 = self.mf2_conv2(x)
+        # c3 = self.mf2_conv3(x)
+        # c4 = self.mf2_conv4(x)
+        # c5 = self.mf2_conv5(x)
+        # c6 = self.mf2_conv6(x)
+        # x = torch.cat((c1,c2,c3,c4,c5,c6), dim=3)
+        # x = self.mf2_conv_final(x)
 
         # x = self.mf3_ap(x)
         # x = self.mf3_bn(x)
