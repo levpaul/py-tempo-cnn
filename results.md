@@ -14,7 +14,7 @@
 
 
 #####Effects 500k (huge-effects)*
-- mfmod1, bsize256, lr01, ep##=(,)
+- mfmod1, bsize256, lr01, ep205=(90,31)
 - mfmod3, bsize192, lr01, ep##=(,)
 - mfmod4, bsize32, lr01, ep##=(,)
 
