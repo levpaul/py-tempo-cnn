@@ -5,6 +5,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from lib.nets.tempo_net import TempoNet
+from lib.nets.basic_net import BasicNet
+
 import argparse
 import re
 import glob
@@ -15,7 +18,6 @@ from pathlib import Path
 from lib.datasets.spectrograms import SpectrogramsDataset
 
 epochs=10000
-bsize=256
 spectro_window_size = 256
 
 DEFAULT_SAVE_FORMAT = 'default'
@@ -25,12 +27,14 @@ DEFAULT_LOAD_FORMAT = 'default'
 def parse_args():
     pa = argparse.ArgumentParser()
 
-    pa.add_argument('-n', '--network', default='tempo', type=str,
-                    help='Select NN to use, can chose from [tempo,basic]')
+    pa.add_argument('-n', '--network', default='t1', type=str,
+                    help='Select NN to use, can chose from [t1,t2,t3,t4,basic]')
     pa.add_argument('-d', '--data-dir', required=True, type=str,
                     help='Data containing .npy files for training and test data and labels')
     pa.add_argument('-r', '--learning-rate', default=0.01, type=float,
                     help='Set learning rate of optimizer')
+    pa.add_argument('-b', '--batch-size', type=int,
+                    help='Override batch size')
     pa.add_argument('-l', '--load', nargs='?', const=DEFAULT_LOAD_FORMAT, type=str,
                     help='Resume training from a saved model - specify custom filename or use the default')
     pa.add_argument('-s', '--save-name', default=DEFAULT_SAVE_FORMAT, type=str,
@@ -76,33 +80,52 @@ def test(net, loader, device):
 def run():
     args = parse_args()
 
+    print('Initializing network and optimizer')
+    if 't' in args.network:
+        mfmod_levels = int(args.network[-1])
+        net = TempoNet(mfmod_levels=mfmod_levels)
+        if mfmod_levels == 1:
+            bsize = 1024
+        elif mfmod_levels == 2:
+            bsize = 512
+        elif mfmod_levels == 3:
+            bsize = 192
+        elif mfmod_levels == 4:
+            bsize = 64
+    elif args.network == 'basic':
+        BasicNet()
+        bsize = 128
+    else:
+        print('Invalid neural network; "{}" is not supported'.format(args.network))
+        exit(1)
+
+    if args.batch_size:
+        bsize = args.batch_size
+
     print('Initializing Data Loaders...')
     tr_loader = DataLoader(SpectrogramsDataset(train=True, dir=args.data_dir),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
     te_loader = DataLoader(SpectrogramsDataset(train=False, dir=args.data_dir),
                            batch_size=bsize, shuffle=True, num_workers=1, pin_memory=True)
 
-    print('Initializing network and optimizer')
-    if args.network == 'tempo':
-        from lib.nets.tempo_net import TempoNet
-        net = TempoNet()
-    elif args.network == 'basic':
-        from lib.nets.basic_net import BasicNet
-        BasicNet()
-    else:
-        print('Invalid neural network; "{}" is not supported'.format(args.network))
-        exit(1)
-
+    # ==============
     # Save template
+    # ==============
     save_dir = path.join(args.data_dir, 'saves')
     Path(save_dir).mkdir(parents=True, exist_ok=True)
-    if args.save_name == DEFAULT_SAVE_FORMAT:
+
+    if args.save_name == DEFAULT_SAVE_FORMAT and args.load is None:
         save_name_base= save_dir+'/nn-{:s}-lr{:f}'.format(args.network, args.learning_rate)
+    elif args.load is not None:
+        save_name_base = save_dir+'/'+args.load
+        print('loadform:', save_name_base)
     else:
         save_name_base = save_dir+'/'+args.save_name
     epoch_save_format = save_name_base+'-ep{:04d}.pt'
 
+    # ==============
     # Load template
+    # ==============
     start_epoch = 1
     if args.load:
         if args.load == DEFAULT_LOAD_FORMAT:
@@ -132,16 +155,26 @@ def run():
         start_epoch = max_ep+1
         net.load_state_dict(torch.load(max_f))
 
+
+    # ==============
+    # Prepare CUDA
+    # ==============
     cuda = torch.cuda.is_available()
     device = torch.device("cuda:0") if cuda else "cpu"
     if cuda:
         net = net.cuda().half()
 
+    # ==============
+    # Optim + Loss
+    # ==============
     opt = optim.SGD(net.parameters(), lr=args.learning_rate)
     # opt = optim.Adam(net.parameters(), lr=0.01, eps=1e-4) # <- deconverged to NaNs at 2.5 epochs
     criterion = nn.NLLLoss()
     # criterion = nn.CrossEntropyLoss()
 
+    # ==============
+    # Train
+    # ==============
     print('ep,train_acc,test_acc')
     for e in range(start_epoch,epochs+1):
         tr_acc = train(net, tr_loader, device, opt, criterion)
