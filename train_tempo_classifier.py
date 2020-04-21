@@ -85,7 +85,7 @@ def run():
         mfmod_levels = int(args.network[-1])
         net = TempoNet(mfmod_levels=mfmod_levels)
         if mfmod_levels == 1:
-            bsize = 1024
+            bsize = 512
         elif mfmod_levels == 2:
             bsize = 512
         elif mfmod_levels == 3:
