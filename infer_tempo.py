@@ -4,17 +4,12 @@ import torch
 from torch.utils.data import DataLoader
 
 from lib.nets.tempo_net import TempoNet
+from lib.datasets.spectrograms import RawFileDataset
 
 import argparse
 
-from lib.datasets.spectrograms import RawFileDataset
-
-epochs=10000
-spectro_window_size = 256
-
-DEFAULT_SAVE_FORMAT = 'default'
-DEFAULT_LOAD_FORMAT = 'default'
-
+import matplotlib
+import matplotlib.pyplot as plt
 
 def parse_args():
     pa = argparse.ArgumentParser()
@@ -36,11 +31,16 @@ def parse_args():
 
 def eval(net, loader, device):
     net.eval()
+    results = []
     with torch.no_grad():
         for spectro in loader:
             out = net(spectro.to(device))
-            pred = out.argmax(dim=1, keepdim=True)
-            print('pred: {}'.format(pred[0][0]))
+            pred = out.argmax(dim=1, keepdim=True)[0][0]
+            print('pred: {}'.format(pred))
+            results.append(pred)
+
+    plt.plot(range(len(loader)), results)
+    plt.show()
 
 def run():
     args = parse_args()
