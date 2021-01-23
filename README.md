@@ -1,5 +1,7 @@
 repo for trying to make a tempo estimator for guitars
 
+Inspired / Ported from https://github.com/hendriks73/tempo-cnn
+
 
 # Steps to create a new Datset
 
