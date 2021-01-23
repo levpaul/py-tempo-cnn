@@ -1,4 +1,4 @@
-repo for beatbuddy drummer
+repo for trying to make a tempo estimator for guitars
 
 
 # Steps to create a new Datset
